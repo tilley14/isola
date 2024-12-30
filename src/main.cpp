@@ -2,7 +2,7 @@
 
 int main(int argc, char* argv[])
 {
-    Isola board;
+    isola::Isola board;
     board.play();
     return 0;
 }

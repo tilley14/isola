@@ -25,6 +25,8 @@
 #include <system_error>
 #include <vector>
 
+namespace isola {
+
 enum class Direction {
   DownLeft = 1,
   Down = 2,
@@ -47,25 +49,72 @@ struct Player {
   }
 };
 
+constexpr const char *EMPTY_SPOT = "+";
+
+class Board {
+    int m_rows;
+    int m_cols;
+    std::vector<std::vector<std::string>> m_board;
+
+public:
+  Board(int rows, int cols)
+      : m_rows(rows), m_cols(cols),
+        m_board(rows, std::vector<std::string>(cols, EMPTY_SPOT)) {}
+
+  void setCell(int row, int col, const std::string &symbol) {
+    m_board[row][col] = symbol;
+  }
+
+  const std::string &getCell(int row, int col) const {
+    return m_board[row][col];
+  }
+
+  std::string toString() const {
+    std::string str;
+    for (int row = 0; row < rows(); ++row) {
+      for (int col = 0; col < cols(); ++col) {
+        str += m_board[row][col];
+      }
+      str += "\n";
+    }
+    return str;
+  }
+  std::string toPrettyString() {
+    std::string str = "  "; // reserve space for row labels
+    for (int col = 0; col < cols(); ++col) {
+      str += std::to_string(col + 1);
+    }
+    str += "\n";
+
+    for (int row = 0; row < rows(); ++row) {
+      str += std::to_string(row + 1) + " ";
+      for (int col = 0; col < cols(); ++col) {
+        str += m_board[row][col];
+      }
+      str += "\n";
+    }
+    return str;
+  }
+
+  int rows() const { return m_rows; }
+  int cols() const { return m_rows; }
+};
+
+constexpr const char *DEAD_CELL = "A";
+
 class Isola {
-
-  const std::string EMPTY_SPOT;
-
   Player *activePlayer;
   Player p1;
   Player p2;
-
-  std::vector<std::vector<std::string>> board;
+  Board board;
 
 public:
   Isola()
-      : EMPTY_SPOT("+"), activePlayer(nullptr),
-        p1{.avitar = "B", .row = 0, .col = 3},
-        p2{.avitar = "W", .row = 6, .col = 3},
-        board(7, std::vector<std::string>(7, EMPTY_SPOT)) {
+      : activePlayer(nullptr), p1{.avitar = "B", .row = 0, .col = 3},
+        p2{.avitar = "W", .row = 6, .col = 3}, board(7, 7) {
     activePlayer = &p1;
-    board[p1.row][p1.col] = p1.avitar;
-    board[p2.row][p2.col] = p2.avitar;
+    board.setCell(p1.row, p1.col, p1.avitar);
+    board.setCell(p2.row, p2.col, p2.avitar);
   }
 
   void play() {
@@ -164,13 +213,15 @@ public:
 
     bool isValidMove = true;
 
-    if (row < 0 || row > rows() - 1 || col < 0 || col > cols() - 1) {
+    if (row < 0 || row > board.rows() - 1 || col < 0 ||
+        col > board.cols() - 1) {
       isValidMove = false;
       std::cout << "Invalid move, please try again: " << std::endl;
-    } else if (board[row][col] == "A") {
+    } else if (board.getCell(row, col) == DEAD_CELL) {
       isValidMove = false;
       std::cout << "That space is dead, please try again: " << std::endl;
-    } else if (board[row][col] == p1.avitar || board[row][col] == p2.avitar) {
+    } else if (board.getCell(row, col) == p1.avitar ||
+               board.getCell(row, col) == p2.avitar) {
       isValidMove = false;
       std::cout << "That space is occupied by the opponent, please try again: "
                 << std::endl;
@@ -179,9 +230,9 @@ public:
       std::cout << "Valid move" << std::endl;
 
       // Kill the old location of the player
-      board[p->row][p->col] = "A";
+      board.setCell(p->row, p->col, DEAD_CELL);
       p->setCoordinates(row, col);
-      board[p->row][p->col] = p->avitar;
+      board.setCell(p->row, p->col, p->avitar);
 
       clearTerm();
       drawBoard();
@@ -212,11 +263,11 @@ public:
 
         row = in_row - 1;
 
-        if (ec != std::errc{} || row < 0 || row > rows() - 1) {
+        if (ec != std::errc{} || row < 0 || row > board.rows() - 1) {
           std::cout << "Invalid coordinate!" << std::endl;
         }
 
-      } while (ec != std::errc{} || row < 0 || row > rows() - 1);
+      } while (ec != std::errc{} || row < 0 || row > board.rows() - 1);
 
       do {
         std::cout << "Please select a column: ";
@@ -229,18 +280,18 @@ public:
 
         col = in_col - 1;
 
-        if (ec != std::errc{} || col < 0 || col > cols() - 1) {
+        if (ec != std::errc{} || col < 0 || col > board.cols() - 1) {
           std::cout << "Invalid coordinate!" << std::endl;
         }
-      } while (ec != std::errc{} || col < 0 || col > cols() - 1);
+      } while (ec != std::errc{} || col < 0 || col > board.cols() - 1);
 
-      if (board[row][col] != "+") {
+      if (board.getCell(row, col) != EMPTY_SPOT) {
         std::cout << "That location cannot be destroyed." << std::endl;
       }
 
-    } while (board[row][col] != "+");
+    } while (board.getCell(row, col) != EMPTY_SPOT);
 
-    board[row][col] = "A";
+    board.setCell(row, col, DEAD_CELL);
     clearTerm();
     drawBoard();
   }
@@ -252,25 +303,28 @@ public:
     int row = p->row;
     int col = p->col;
 
-    // Check to see if there is an open spot "+" around the player
-    if (row - 1 >= 0 && col - 1 >= 0 && board[row - 1][col - 1] == "+") {
+    // Check to see if there is an open spot around the player
+    if (row - 1 >= 0 && col - 1 >= 0 &&
+        board.getCell(row - 1, col - 1) == EMPTY_SPOT) {
       hasValidMove = true;
-    } else if (row - 1 >= 0 && board[row - 1][col] == "+") {
+    } else if (row - 1 >= 0 && board.getCell(row - 1, col) == EMPTY_SPOT) {
       hasValidMove = true;
-    } else if (row - 1 >= 0 && col + 1 < cols() &&
-               board[row - 1][col + 1] == "+") {
+    } else if (row - 1 >= 0 && col + 1 < board.cols() &&
+               board.getCell(row - 1, col + 1) == EMPTY_SPOT) {
       hasValidMove = true;
-    } else if (col - 1 >= 0 && board[row][col - 1] == "+") {
+    } else if (col - 1 >= 0 && board.getCell(row, col - 1) == EMPTY_SPOT) {
       hasValidMove = true;
-    } else if (col + 1 < cols() && board[row][col + 1] == "+") {
+    } else if (col + 1 < board.cols() &&
+               board.getCell(row, col + 1) == EMPTY_SPOT) {
       hasValidMove = true;
-    } else if (row + 1 < rows() && col - 1 >= 0 &&
-               board[row + 1][col - 1] == "+") {
+    } else if (row + 1 < board.rows() && col - 1 >= 0 &&
+               board.getCell(row + 1, col - 1) == EMPTY_SPOT) {
       hasValidMove = true;
-    } else if (row + 1 < rows() && board[row + 1][col] == "+") {
+    } else if (row + 1 < board.rows() &&
+               board.getCell(row + 1, col) == EMPTY_SPOT) {
       hasValidMove = true;
-    } else if (row + 1 < rows() && col + 1 < cols() &&
-               board[row + 1][col + 1] == "+") {
+    } else if (row + 1 < board.rows() && col + 1 < board.cols() &&
+               board.getCell(row + 1, col + 1) == EMPTY_SPOT) {
       hasValidMove = true;
     }
 
@@ -296,20 +350,9 @@ public:
   }
 
   void drawBoard() {
-    std::string str = "  "; // reserve space for row labels
-    for (int col = 0; col < cols(); ++col) {
-      str += std::to_string(col + 1);
-    }
-    str += "\n";
+    std::string str = board.toPrettyString();
 
-    for (int row = 0; row < rows(); ++row) {
-      str += std::to_string(row + 1) + " ";
-      for (int col = 0; col < cols(); ++col) {
-        str += board[row][col];
-      }
-      str += "\n";
-    }
-
+    // In case the user doesn't have a num pad to look at...
     str += "\n7-8-9"
            "\n4---6"
            "\n1-2-3\n";
@@ -319,15 +362,17 @@ public:
   }
 
   void clearTerm() {
-    // system("cls");
+#ifdef _WIN32
+    system("cls");
+#else
     system("clear");
+#endif
   }
 
   void pause(const std::string &msg = "Press enter to continue...") {
     std::cout << msg << std::endl;
     std::getchar();
   }
-
-  int rows() const { return 7; }
-  int cols() const { return 7; }
 };
+
+} // namespace isola
